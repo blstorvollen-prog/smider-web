@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { OpenAI } from "openai";
 
-// 1. Mini-Language Model – ONLY for interpreting user text
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+export const runtime = "nodejs";
+
+// ... (CATEGORY_RATES and other constants remain the same) ...
+
 
 // 2. Categories & rates (THIS you control, not the AI!)
 const CATEGORY_RATES = {
@@ -68,6 +68,14 @@ const TIME_RULES: Record<string, (data: JobPayload) => number> = {
 
 // 5. AI interpreter (Context-aware)
 async function aiInterpret(conversation: any[]) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is missing");
+  }
+
+  const client = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
   const systemPrompt = `
 Du er en smart assistent som henter ut strukturert data fra en samtale om håndverkertjenester.
 Din oppgave er å slå sammen informasjonen fra HELE samtalen.
