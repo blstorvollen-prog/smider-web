@@ -1,0 +1,3 @@
+@echo off
+echo Starting Handyman MVP Server...
+npm run dev
