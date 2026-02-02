@@ -5,9 +5,16 @@ import { createAdminClient } from '@/utils/supabase/admin' // Added import
 import Stripe from 'stripe'
 import { redirect } from 'next/navigation'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2024-06-20' as any,
-})
+// Helper to get Stripe instance safely
+const getStripe = () => {
+    if (!process.env.STRIPE_SECRET_KEY) {
+        throw new Error('STRIPE_SECRET_KEY is missing')
+    }
+    return new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2024-06-20' as any,
+    })
+}
+
 
 import { findProviders } from '@/utils/matching'
 
@@ -94,6 +101,7 @@ export async function createJob(data: any) {
         // 2. Create Stripe Payment Intent
         const amount = Math.round(data.estimated_price_max * 100)
 
+        const stripe = getStripe()
         const paymentIntent = await stripe.paymentIntents.create({
             amount,
             currency: 'nok',
@@ -124,6 +132,7 @@ export async function activateJob(jobId: string) {
     if (!job.stripe_payment_intent_id) return { error: 'No payment intent found' }
 
     // Verify Payment Intent
+    const stripe = getStripe()
     const paymentIntent = await stripe.paymentIntents.retrieve(job.stripe_payment_intent_id)
     if (paymentIntent.status === 'canceled') return { error: 'Payment canceled' }
 
