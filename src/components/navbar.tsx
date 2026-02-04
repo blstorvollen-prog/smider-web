@@ -25,8 +25,7 @@ export async function Navbar() {
             <div className="container flex h-14 items-center justify-between">
                 <div className="mr-4 flex">
                     <Link className="mr-6 flex items-center space-x-2 font-bold" href="/">
-                        {/* Assuming logo exists or text fallback */}
-                        <span className="hidden font-bold sm:inline-block">Smider</span>
+                        <span className="hidden text-2xl font-bold sm:inline-block" style={{ fontFamily: 'Horizon, sans-serif' }}>smiðr</span>
                     </Link>
                 </div>
                 <div className="flex items-center space-x-2">
