@@ -26,7 +26,7 @@ const REQUIRED_FIELDS = {
   MALER: ["area_sqm", "materials_by_customer", "include_ceiling"],
   SNEKKER: ["task_details", "materials_by_customer"],
   RØRLEGGER: ["task_details", "materials_by_customer"],
-  ELEKTRIKER: ["task_details", "materials_by_customer"],
+  ELEKTRIKER: ["task_details", "materials_by_customer"], // Dynamic fields added in getMissingFields based on context
   FLISLEGGING: ["area_sqm", "materials_by_customer"],
   HANDYMAN: ["task_details"],
   TOTALRENOVERING_BAD: ["area_sqm", "task_details", "materials_by_customer"],
@@ -41,6 +41,11 @@ interface JobPayload {
   needs_electrician?: boolean;
   materials_description?: string;
   estimated_material_cost?: number;
+  // Specific fields for Lamp installation
+  has_existing_point?: boolean; // true = Uten punkt (1.5t), false = Med punkt (2.5t + mat) - Interpretation: "Needs new point"
+  ceiling_height_type?: 'standard' | 'high_sloped';
+  lamp_count?: number;
+  switch_type?: 'existing' | 'new';
   [key: string]: any;
 }
 
@@ -55,7 +60,45 @@ const TIME_RULES: Record<string, (data: JobPayload) => number> = {
   HANDYMAN: () => 1.5, // minimum small-job block
   SNEKKER: () => 3,
   RØRLEGGER: () => 2.5,
-  ELEKTRIKER: () => 2.5,
+  ELEKTRIKER: (data) => {
+    // Check if it's a lamp job
+    const description = (data.task_details || "").toLowerCase();
+    const isLampJob = description.includes("lampe") || description.includes("belysning") || description.includes("lys") || description.includes("spot");
+
+    if (isLampJob) {
+      let hours = 0;
+
+      // Base time: Existing point (1.5h) vs New point (2.5h)
+      // Note: User phrased it "Uten punkt 1.5 time. Med punkt 2.5 timer". 
+      // We interpret "Med punkt" as "Includes creating a point" (New point needed).
+      // We interpret "Uten punkt" as "Without creating point" (Existing point).
+      if (data.has_existing_point === false) {
+        hours = 2.5;
+      } else {
+        hours = 1.5;
+      }
+
+      // Height addition
+      if (data.ceiling_height_type === 'high_sloped') {
+        hours += 2.0;
+      }
+
+      // Multiple lamps (First one covered in base, add 30min for extras)
+      const count = data.lamp_count || 1;
+      if (count > 1) {
+        hours += (count - 1) * 0.5;
+      }
+
+      // Switch type (If new styring, maybe add 0.5h? User didn't specify price, but implied distinct task)
+      if (data.switch_type === 'new') {
+        hours += 0.5;
+      }
+
+      return hours > 0 ? hours : 1.5;
+    }
+
+    return 2.5; // Default for other electrician jobs
+  },
   // Base 60 hours + 15 hours per sqm. A 4sqm bathroom = 60 + 60 = 120h. Steps: Demolition, Membranes, Tiling, Plumbing, Electric.
   TOTALRENOVERING_BAD: (data) => 60 + ((data.area_sqm || 4) * 15),
   MONTERING_KJØKKEN: (data) => {
@@ -98,6 +141,10 @@ Data du skal se etter (avhengig av kategori):
 - include_ceiling (boolean: kun for MALER. true hvis taket også skal males)
 - needs_plumbing (boolean: kun for MONTERING_KJØKKEN. true hvis bruker nevner kran, oppvaskmaskin, rør, vann)
 - needs_electrician (boolean: kun for MONTERING_KJØKKEN. true hvis bruker nevner stikkontakter, ovn, strøm, elektriker)
+- has_existing_point (boolean: kun for ELEKTRIKER/lampe. true hvis bruker sier "det er uttak der", "bytte lampe", "henger der fra før". false hvis "nytt punkt", "må legge strøm", "ingen uttak")
+- ceiling_height_type ('standard' eller 'high_sloped'. high_sloped hvis bruker sier "skråtak", "høyt under taket", "trappeoppgang", "3 meter")
+- lamp_count (number: antall lamper)
+- switch_type ('existing' eller 'new'. new hvis bruker vil ha "dimmer", "ny bryter", "plejd", "smartstyring")
 - task_details (tekstlig beskrivelse)
 - materials_description (string: HVIS materials_by_customer=false: Hva skal kjøpes inn? F.eks "Hvit maling, pensler, gipsplater". Hvis ukjent, null.)
 - estimated_material_cost (number: HVIS materials_by_customer=false OG materials_description er kjent: Gjør et kvalifisert estimat på materialkostnad i NOK. Vær konservativ. F.eks 2000 for maling av et rom.)
@@ -112,6 +159,10 @@ OUTPUT JSON (Strict):
   "include_ceiling": boolean | null,
   "needs_plumbing": boolean | null,
   "needs_electrician": boolean | null,
+  "has_existing_point": boolean | null,
+  "ceiling_height_type": 'standard' | 'high_sloped' | null,
+  "lamp_count": number | null,
+  "switch_type": 'existing' | 'new' | null,
   "task_details": string | null,
   "materials_description": string | null,
   "estimated_material_cost": number | null,
@@ -162,6 +213,19 @@ function getMissingFields(category: string, payload: any) {
     needed.push("materials_description");
   }
 
+  // Logic for Electrician Lamp jobs
+  if (normCategory === 'ELEKTRIKER') {
+    const detail = (payload.task_details || "").toLowerCase();
+    const isLamp = detail.includes("lampe") || detail.includes("belysning") || detail.includes("lys") || detail.includes("pendel");
+
+    if (isLamp) {
+      if (payload.has_existing_point === undefined || payload.has_existing_point === null) needed.push("has_existing_point");
+      if (payload.lamp_count === undefined || payload.lamp_count === null) needed.push("lamp_count");
+      if (payload.ceiling_height_type === undefined || payload.ceiling_height_type === null) needed.push("ceiling_height_type");
+      if (payload.switch_type === undefined || payload.switch_type === null) needed.push("switch_type");
+    }
+  }
+
   return needed.filter((field) => {
     const val = payload[field];
     return val === undefined || val === null || val === "";
@@ -185,6 +249,14 @@ function buildQuestion(field: string) {
       return "Skal det monteres kran, oppvaskmaskin eller lignende?";
     case "needs_electrician":
       return "Er det behov for elektriker (f.eks. til stikkontakter eller hvitevarer)?";
+    case "has_existing_point":
+      return "Er det allerede et eksisterende lampeuttak i taket der lampen skal monteres?";
+    case "lamp_count":
+      return "Hvor mange lamper gjelder det?";
+    case "ceiling_height_type":
+      return "Er det vanlig takhøyde (ca 2,4 m), eller høyt/skråtak?";
+    case "switch_type":
+      return "Skal den kobles til eksisterende bryter, eller ny styring (f.eks. dimmer)?";
     default:
       return "Kan du gi litt mer informasjon?";
   }
