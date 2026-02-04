@@ -22,8 +22,9 @@ export function ConsumerSignupForm() {
             const res = await signupConsumer(formData)
             if (res.error) {
                 setError(res.error)
-            } else if (res.message) {
-                setSuccess(res.message)
+            } else {
+                const msg = (res as any).message
+                if (msg) setSuccess(msg)
             }
         } catch (err) {
             setError('Noe gikk galt. Prøv igjen senere.')

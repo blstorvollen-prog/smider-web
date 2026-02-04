@@ -99,7 +99,8 @@ export function ContractorSignupForm() {
             try {
                 const res = await signupContractor(formData)
                 if (res?.error) setError(res.error)
-                if (res?.message) setMessage(res.message)
+                const msg = (res as any).message
+                if (msg) setMessage(msg)
             } catch (e) {
                 setError('Noe gikk galt')
             }
