@@ -60,7 +60,7 @@ export default async function Home() {
         </div>
 
         <div className="absolute bottom-8 text-xs text-muted-foreground/50">
-          &copy; 2024 Smider. All rights reserved.
+          &copy; 2026 Smider. All rights reserved.
         </div>
       </main>
     )
