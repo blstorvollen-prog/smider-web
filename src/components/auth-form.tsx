@@ -54,7 +54,8 @@ export function AuthForm({ type }: { type: 'login' | 'signup' }) {
                 } else {
                     const res = await signup(formData)
                     if (res?.error) setError(res.error)
-                    if (res?.message) setMessage(res.message)
+                    const msg = (res as any).message;
+                    if (msg) setMessage(msg)
                 }
             } catch (e) {
                 setError('Something went wrong')
