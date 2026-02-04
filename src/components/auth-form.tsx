@@ -110,16 +110,23 @@ export function AuthForm({ type }: { type: 'login' | 'signup' }) {
                     </form>
                 </Form>
             </CardContent>
-            <CardFooter className="flex justify-center">
-                <Link
-                    href={type === 'login' ? '/signup' : '/login'}
-                    className="text-sm text-muted-foreground hover:underline"
-                >
-                    {type === 'login'
-                        ? "Har du ikke konto? Registrer deg"
-                        : 'Har du allerede en konto? Logg inn'}
-                </Link>
-            </CardFooter>
+            <div className="flex flex-col items-center gap-4 w-full">
+                <p className="text-sm text-muted-foreground text-center">
+                    Har du ikke konto? <br />
+                    Plattformen er under utvikling og lukket for registrering.
+                </p>
+                <div className="w-full border-t" />
+                <div className="space-y-2 text-center w-full">
+                    <p className="text-xs font-medium text-foreground">
+                        Ønsker du tilgang?
+                    </p>
+                    <Button variant="outline" className="w-full text-xs" asChild>
+                        <a href="mailto:benjamin@smider.no?subject=Forespørsel om tilgang til Smider&body=Hei, jeg ønsker gjerne tilgang til testversjonen av Smider.%0D%0A%0D%0ANavn:%20%0D%0ATelefon:%20">
+                            Send forespørsel til benjamin@smider.no
+                        </a>
+                    </Button>
+                </div>
+            </div>
         </Card>
     )
 }
