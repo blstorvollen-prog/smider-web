@@ -5,6 +5,8 @@ import { ChatInterface } from '@/components/chat-interface'
 import { createClient } from '@/utils/supabase/server'
 import { Lock, Construction } from 'lucide-react'
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
