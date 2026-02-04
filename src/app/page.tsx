@@ -33,9 +33,9 @@ export default async function Home() {
               <h1 className="text-3xl font-bold tracking-tight">
                 Smider
               </h1>
-              <div className="flex items-center justify-center gap-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-500 px-3 py-1 rounded-full text-xs font-medium w-fit mx-auto border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-500 px-3 py-1 rounded-full text-xs font-medium w-fit mx-auto border border-green-200 dark:border-green-800">
                 <Lock className="w-3 h-3" />
-                Under Utvikling v3
+                Under Utvikling v4
               </div>
             </div>
           </div>
