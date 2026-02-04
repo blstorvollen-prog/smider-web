@@ -121,8 +121,8 @@ export function AuthForm({ type }: { type: 'login' | 'signup' }) {
                         Ønsker du tilgang?
                     </p>
                     <Button variant="outline" className="w-full text-xs" asChild>
-                        <a href="mailto:benjamin@smider.no?subject=Forespørsel om tilgang til Smider&body=Hei, jeg ønsker gjerne tilgang til testversjonen av Smider.%0D%0A%0D%0ANavn:%20%0D%0ATelefon:%20">
-                            Send forespørsel til benjamin@smider.no
+                        <a href="mailto:pilot@smider.no?subject=Forespørsel om tilgang til Smider&body=Hei, jeg ønsker gjerne tilgang til testversjonen av Smider.%0D%0A%0D%0ANavn:%20%0D%0ATelefon:%20">
+                            Send forespørsel til pilot@smider.no
                         </a>
                     </Button>
                 </div>
