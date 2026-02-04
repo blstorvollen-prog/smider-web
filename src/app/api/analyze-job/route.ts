@@ -40,12 +40,45 @@ interface JobPayload {
   needs_plumbing?: boolean;
   needs_electrician?: boolean;
   materials_description?: string;
-  estimated_material_cost?: number;
-  // Specific fields for Lamp installation
-  has_existing_point?: boolean; // true = Uten punkt (1.5t), false = Med punkt (2.5t + mat) - Interpretation: "Needs new point"
-  ceiling_height_type?: 'standard' | 'high_sloped';
-  lamp_count?: number;
   switch_type?: 'existing' | 'new';
+  // Socket Change
+  socket_count?: number;
+  is_grounded?: boolean;
+  is_socket_accessible?: boolean;
+  // Dimmer
+  bulb_type?: 'led' | 'halogen';
+  dimmer_count?: number;
+  dimmer_circuit_type?: 'single' | 'multi'; // Enkel vs Trapp
+  // EV Charger
+  ev_has_charger?: boolean;
+  ev_distance_meters?: number;
+  ev_phase?: '1-phase' | '3-phase';
+  ev_load_balancing?: boolean;
+  // Troubleshooting
+  troubleshoot_type?: 'fuse' | 'other';
+  troubleshoot_is_acute?: boolean;
+  // Spots
+  spot_count?: number;
+  ceiling_type?: 'open_loft' | 'closed'; // Loft/Åpent vs Lukket
+  spot_needs_dimmer?: boolean;
+  // Move Socket
+  wall_type?: 'drywall' | 'concrete';
+  wiring_type?: 'hidden' | 'open';
+  socket_move_action?: 'remove_old' | 'keep_old';
+  // New Circuit
+  appliance_type?: 'induction' | 'other'; // Induksjon or not
+  fuse_box_has_space?: boolean;
+  circuit_distance_meters?: number;
+  // Fuse Box
+  fuse_box_age?: number;
+  fuse_box_circuit_count?: number;
+  fuse_box_surge_protection?: boolean; // Overspenningsvern
+  fuse_box_extra_equipment?: boolean; // EV/Solar
+  // Outdoor Socket
+  outdoor_location?: string;
+  outdoor_distance_meters?: number;
+  outdoor_socket_count?: number;
+  outdoor_weather_exposed?: boolean; // Tak over vs værutsatt
   [key: string]: any;
 }
 
@@ -61,43 +94,133 @@ const TIME_RULES: Record<string, (data: JobPayload) => number> = {
   SNEKKER: () => 3,
   RØRLEGGER: () => 2.5,
   ELEKTRIKER: (data) => {
-    // Check if it's a lamp job
-    const description = (data.task_details || "").toLowerCase();
-    const isLampJob = description.includes("lampe") || description.includes("belysning") || description.includes("lys") || description.includes("spot");
+    // Check for specific intents
+    const d = (data.task_details || "").toLowerCase();
 
-    if (isLampJob) {
+    // Helper to check for keywords
+    const has = (words: string[]) => words.some(w => d.includes(w));
+
+    // 1. SOCKET CHANGE (Stikkontakt)
+    if (has(['bytte stikk', 'ny stikk', 'jordet stikk', 'ujordet', 'brent stikk'])) {
+      // 1 stk: 1.5 - 1.8h (1500-2800kr). Let's say 1.5h base.
+      // Flere: 2500-5000. 2 stk ~ 2.5h (3750).
+      let count = data.socket_count || 1;
+      let hours = 1.5;
+      if (count > 1) {
+        hours += (count - 1) * 1.0; // +1h per extra socket
+      }
+      return hours;
+    }
+
+    // 2. DIMMER
+    if (has(['dimmer', 'dimme'])) {
+      // Enkel: 2000-4000kr -> ~2h.
+      // Trapp: 3500-6000kr -> ~3h.
+      let hours = 2.0;
+      if (data.dimmer_circuit_type === 'multi') hours = 3.0; // Trapp
+
+      let count = data.dimmer_count || 1;
+      if (count > 1) hours += (count - 1) * 1.5; // +1.5h per extra dimmer
+
+      return hours;
+    }
+
+    // 3. EV CHARGER (Elbillader)
+    if (has(['elbil', 'lader', 'ladeboks', 'zaptec', 'easee'])) {
+      // Enkel: 12k-20k. Mat cost typically 8k-10k. Labor ~4k-10k -> 3-6 hours.
+      // Upgrade: 20k-35k. Labor + Mat upgrade.
+      let hours = 4.0;
+      if (data.ev_distance_meters && data.ev_distance_meters > 10) hours += 2.0;
+
+      // If upgrade needed (3-phase check or load balancing might imply complexity)
+      if (data.ev_phase === '3-phase' || data.ev_load_balancing) hours += 3.0;
+
+      return hours;
+    }
+
+    // 4. TROUBLESHOOTING (Feilsøking)
+    if (has(['sikring', 'går', 'strøm', 'borte', 'jordfeil', 'reparasjon', 'feilsøk'])) {
+      // 1-2 hours base estimate as per user spec (2500-6000kr).
+      // 2500kr = 1.6h. 6000kr = 4h.
+      // We start at 2h.
+      let hours = 2.0;
+      if (data.troubleshoot_is_acute) hours += 1; // Acute usually implies urgent dispatch fee, simplified as hours here
+      return hours;
+    }
+
+    // 5. SPOTS (Spotter på bad etc)
+    if (has(['spot', 'downlight'])) {
+      // 4-6 spots: 10-18k. Mat cost for 5 spots ~3-5k. Labor 7-13k -> 5-8h. 
+      // ~1h per spot is a safe rule of thumb for new install.
+      let count = data.spot_count || 4;
+      let hours = count * 1.25; // 5 spots = 6.25h
+
+      if (data.ceiling_type === 'closed') hours += 2; // Harder access
+      if (data.spot_needs_dimmer) hours += 0.5;
+
+      return hours;
+    }
+
+    // 6. MOVE SOCKET (Flytte stikkontakt)
+    if (has(['flytte', 'flytting'])) {
+      // Enkel: 3-6k (2-4h). Betong: 6-10k (4-7h).
+      let hours = 2.5; // Base
+      if (data.wall_type === 'concrete') hours = 5.0;
+      if (data.wiring_type === 'hidden') hours += 1.0; // Hidden is harder to move nicely
+
+      return hours;
+    }
+
+    // 7. NEW CIRCUIT (Ny kurs / Platetopp)
+    if (has(['ny kurs', 'platetopp', 'komfyr', 'induksjon'])) {
+      // Ny kurs: 6-12k (4-8h).
+      let hours = 5.0; // Base
+      if (data.circuit_distance_meters && data.circuit_distance_meters > 10) hours += 2.0;
+      if (data.fuse_box_has_space === false) hours += 3.0; // Must expand cabinet, simplified
+
+      return hours;
+    }
+
+    // 8. FUSE BOX (Bytte sikringsskap)
+    if (has(['bytte sikringsskap', 'oppgradere sikringsskap', 'automatsikring'])) {
+      // Standard: 25-45k. Mat ~10-15k. Labor 15-30k -> 10-20h.
+      let hours = 15.0;
+      if ((data.fuse_box_circuit_count || 0) > 10) hours += 5.0;
+      if (data.fuse_box_extra_equipment) hours += 3.0;
+
+      return hours;
+    }
+
+    // 9. OUTDOOR SOCKET (Utendørs)
+    if (has(['ute', 'terrasse', 'balkong', 'utendørs'])) {
+      // Enkel: 3.5k-7k (2.5-4.5h).
+      // Lang: 7-12k (4.5-8h).
+      let hours = 3.0;
+      if (data.outdoor_distance_meters && data.outdoor_distance_meters > 10) hours += 2.0;
+      if (data.outdoor_weather_exposed) hours += 0.5; // Needs robust cover/seal
+
+      return hours;
+    }
+
+    // 10. LAMP (Fallthrough from previous Logic, now specific)
+    if (has(['lampe', 'belysning', 'lys', 'pendel', 'krone'])) {
       let hours = 0;
-
-      // Base time: Existing point (1.5h) vs New point (2.5h)
-      // Note: User phrased it "Uten punkt 1.5 time. Med punkt 2.5 timer". 
-      // We interpret "Med punkt" as "Includes creating a point" (New point needed).
-      // We interpret "Uten punkt" as "Without creating point" (Existing point).
       if (data.has_existing_point === false) {
         hours = 2.5;
       } else {
         hours = 1.5;
       }
+      if (data.ceiling_height_type === 'high_sloped') hours += 2.0;
 
-      // Height addition
-      if (data.ceiling_height_type === 'high_sloped') {
-        hours += 2.0;
-      }
-
-      // Multiple lamps (First one covered in base, add 30min for extras)
       const count = data.lamp_count || 1;
-      if (count > 1) {
-        hours += (count - 1) * 0.5;
-      }
+      if (count > 1) hours += (count - 1) * 0.5;
 
-      // Switch type (If new styring, maybe add 0.5h? User didn't specify price, but implied distinct task)
-      if (data.switch_type === 'new') {
-        hours += 0.5;
-      }
+      if (data.switch_type === 'new') hours += 0.5;
 
       return hours > 0 ? hours : 1.5;
     }
 
-    return 2.5; // Default for other electrician jobs
+    return 2.5; // Default fallback
   },
   // Base 60 hours + 15 hours per sqm. A 4sqm bathroom = 60 + 60 = 120h. Steps: Demolition, Membranes, Tiling, Plumbing, Electric.
   TOTALRENOVERING_BAD: (data) => 60 + ((data.area_sqm || 4) * 15),
@@ -141,13 +264,50 @@ Data du skal se etter (avhengig av kategori):
 - include_ceiling (boolean: kun for MALER. true hvis taket også skal males)
 - needs_plumbing (boolean: kun for MONTERING_KJØKKEN. true hvis bruker nevner kran, oppvaskmaskin, rør, vann)
 - needs_electrician (boolean: kun for MONTERING_KJØKKEN. true hvis bruker nevner stikkontakter, ovn, strøm, elektriker)
-- has_existing_point (boolean: kun for ELEKTRIKER/lampe. true hvis bruker sier "det er uttak der", "bytte lampe", "henger der fra før". false hvis "nytt punkt", "må legge strøm", "ingen uttak")
-- ceiling_height_type ('standard' eller 'high_sloped'. high_sloped hvis bruker sier "skråtak", "høyt under taket", "trappeoppgang", "3 meter")
+- has_existing_point (boolean: kun for ELEKTRIKER. true hvis bruker sier "det er uttak der", "bytte lampe", "henger der fra før". false hvis "nytt punkt", "må legge strøm", "ingen uttak")
+- ceiling_height_type ('standard' eller 'high_sloped')
 - lamp_count (number: antall lamper)
-- switch_type ('existing' eller 'new'. new hvis bruker vil ha "dimmer", "ny bryter", "plejd", "smartstyring")
+- switch_type ('existing' eller 'new')
+- socket_count (number: antall stikkontakter som skal byttes/monteres)
+- is_grounded (boolean: true for jordet, false for ujordet)
+- is_socket_accessible (boolean: true hvis "lett tilgjengelig", false hvis bak sofa/skap)
+- bulb_type ('led' eller 'halogen')
+- dimmer_count (number)
+- dimmer_circuit_type ('single' eller 'multi'/'trapp'. trapp hvis "to steder", "trappebryter")
+- ev_has_charger (boolean: true hvis kunde har lader)
+- ev_distance_meters (number: avstand sikringsskap til lader/garasje)
+- ev_phase ('1-phase' eller '3-phase')
+- ev_load_balancing (boolean)
+- troubleshoot_type ('fuse' eller 'other')
+- troubleshoot_is_acute (boolean: true hvis "ingen strøm", "haster", "akutt")
+- spot_count (number: antall spotter)
+- ceiling_type ('open_loft' el 'closed')
+- spot_needs_dimmer (boolean)
+- wall_type ('drywall'/'gips' eller 'concrete'/'betong')
+- wiring_type ('hidden'/'skjult' eller 'open'/'åpent')
+- socket_move_action ('remove_old' eller 'keep_old')
+- appliance_type ('induction' eller 'other')
+- fuse_box_has_space (boolean)
+- circuit_distance_meters (number)
+- fuse_box_age (number: år)
+- fuse_box_circuit_count (number)
+- fuse_box_surge_protection (boolean)
+- fuse_box_extra_equipment (boolean)
+- outdoor_location (string: "terrasse", "vegg", "garasje")
+- outdoor_distance_meters (number)
+- outdoor_socket_count (number)
+- outdoor_weather_exposed (boolean: true hvis "værutsatt", false hvis "under tak")
 - task_details (tekstlig beskrivelse)
 - materials_description (string: HVIS materials_by_customer=false: Hva skal kjøpes inn? F.eks "Hvit maling, pensler, gipsplater". Hvis ukjent, null.)
-- estimated_material_cost (number: HVIS materials_by_customer=false OG materials_description er kjent: Gjør et kvalifisert estimat på materialkostnad i NOK. Vær konservativ. F.eks 2000 for maling av et rom.)
+- estimated_material_cost (number: HVIS materials_by_customer=false OG materials_description er kjent: Gjør et kvalifisert estimat på materialkostnad i NOK. 
+    REGLER FOR MATERIALKOSTNAD (ELEKTRIKER):
+    - Elbillader: 8000 (hvis ev_has_charger=false)
+    - Spot: 500 per stk (standard led downlight)
+    - Dimmer: 1000 per stk
+    - Stikkontakt: 300 per stk
+    - Sikringsskap standard innmat: 10000
+    - Kabel: 50 per meter
+    Bruk disse som tommelfingerregler pluss 20% buffer.)
 - user_question (string: hvis brukeren stiller et spørsmål om prosessen, prisen eller materialer som krever et svar)
 - customer_description (string: en oppsummering eller direkte sitat av detaljerte beskrivelser fra kunden som kan være nyttige for håndverkeren, f.eks. "Huset er fra 1950", "Det er trangt bak vasken", "Jeg har hund som må passes på". Dette skal være mer utfyllende enn task_details hvis kunden har gitt mye info.)
 
@@ -163,6 +323,35 @@ OUTPUT JSON (Strict):
   "ceiling_height_type": 'standard' | 'high_sloped' | null,
   "lamp_count": number | null,
   "switch_type": 'existing' | 'new' | null,
+  "socket_count": number | null,
+  "is_grounded": boolean | null,
+  "is_socket_accessible": boolean | null,
+  "bulb_type": 'led' | 'halogen' | null,
+  "dimmer_count": number | null,
+  "dimmer_circuit_type": 'single' | 'multi' | null,
+  "ev_has_charger": boolean | null,
+  "ev_distance_meters": number | null,
+  "ev_phase": '1-phase' | '3-phase' | null,
+  "ev_load_balancing": boolean | null,
+  "troubleshoot_type": 'fuse' | 'other' | null,
+  "troubleshoot_is_acute": boolean | null,
+  "spot_count": number | null,
+  "ceiling_type": 'open_loft' | 'closed' | null,
+  "spot_needs_dimmer": boolean | null,
+  "wall_type": 'drywall' | 'concrete' | null,
+  "wiring_type": 'hidden' | 'open' | null,
+  "socket_move_action": 'remove_old' | 'keep_old' | null,
+  "appliance_type": 'induction' | 'other' | null,
+  "fuse_box_has_space": boolean | null,
+  "circuit_distance_meters": number | null,
+  "fuse_box_age": number | null,
+  "fuse_box_circuit_count": number | null,
+  "fuse_box_surge_protection": boolean | null,
+  "fuse_box_extra_equipment": boolean | null,
+  "outdoor_location": string | null,
+  "outdoor_distance_meters": number | null,
+  "outdoor_socket_count": number | null,
+  "outdoor_weather_exposed": boolean | null,
   "task_details": string | null,
   "materials_description": string | null,
   "estimated_material_cost": number | null,
@@ -216,13 +405,69 @@ function getMissingFields(category: string, payload: any) {
   // Logic for Electrician Lamp jobs
   if (normCategory === 'ELEKTRIKER') {
     const detail = (payload.task_details || "").toLowerCase();
-    const isLamp = detail.includes("lampe") || detail.includes("belysning") || detail.includes("lys") || detail.includes("pendel");
+    const has = (words: string[]) => words.some(w => detail.includes(w));
 
-    if (isLamp) {
+    // LAMPE
+    if (has(['lampe', 'belysning', 'lys', 'pendel'])) {
       if (payload.has_existing_point === undefined || payload.has_existing_point === null) needed.push("has_existing_point");
       if (payload.lamp_count === undefined || payload.lamp_count === null) needed.push("lamp_count");
       if (payload.ceiling_height_type === undefined || payload.ceiling_height_type === null) needed.push("ceiling_height_type");
       if (payload.switch_type === undefined || payload.switch_type === null) needed.push("switch_type");
+    }
+    // STIKKONTAKT BYTTE
+    else if (has(['bytte stikk', 'ny stikk', 'jordet stikk', 'brent stikk'])) {
+      if (payload.socket_count === undefined || payload.socket_count === null) needed.push("socket_count");
+      if (payload.is_grounded === undefined || payload.is_grounded === null) needed.push("is_grounded");
+      if (payload.is_socket_accessible === undefined || payload.is_socket_accessible === null) needed.push("is_socket_accessible");
+    }
+    // DIMMER
+    else if (has(['dimmer', 'dimme'])) {
+      if (payload.bulb_type === undefined || payload.bulb_type === null) needed.push("bulb_type");
+      if (payload.dimmer_circuit_type === undefined || payload.dimmer_circuit_type === null) needed.push("dimmer_circuit_type");
+      if (payload.dimmer_count === undefined || payload.dimmer_count === null) needed.push("dimmer_count");
+    }
+    // ELBIL
+    else if (has(['elbil', 'lader', 'ladeboks', 'zaptec', 'easee'])) {
+      if (payload.ev_has_charger === undefined || payload.ev_has_charger === null) needed.push("ev_has_charger");
+      if (payload.ev_distance_meters === undefined || payload.ev_distance_meters === null) needed.push("ev_distance_meters");
+      if (payload.ev_phase === undefined || payload.ev_phase === null) needed.push("ev_phase");
+      if (payload.ev_load_balancing === undefined || payload.ev_load_balancing === null) needed.push("ev_load_balancing");
+    }
+    // FEILSØK
+    else if (has(['sikring', 'går', 'strøm', 'borte', 'jordfeil'])) {
+      if (payload.troubleshoot_is_acute === undefined || payload.troubleshoot_is_acute === null) needed.push("troubleshoot_is_acute");
+    }
+    // SPOTTER
+    else if (has(['spot', 'downlight'])) {
+      if (payload.spot_count === undefined || payload.spot_count === null) needed.push("spot_count");
+      if (payload.ceiling_type === undefined || payload.ceiling_type === null) needed.push("ceiling_type");
+      if (payload.spot_needs_dimmer === undefined || payload.spot_needs_dimmer === null) needed.push("spot_needs_dimmer");
+    }
+    // FLYTTE STIKK
+    else if (has(['flytte', 'flytting'])) {
+      if (payload.wall_type === undefined || payload.wall_type === null) needed.push("wall_type");
+      if (payload.wiring_type === undefined || payload.wiring_type === null) needed.push("wiring_type");
+      if (payload.socket_move_action === undefined || payload.socket_move_action === null) needed.push("socket_move_action");
+    }
+    // NY KURS
+    else if (has(['ny kurs', 'platetopp', 'komfyr'])) {
+      if (payload.appliance_type === undefined || payload.appliance_type === null) needed.push("appliance_type");
+      if (payload.fuse_box_has_space === undefined || payload.fuse_box_has_space === null) needed.push("fuse_box_has_space");
+      if (payload.circuit_distance_meters === undefined || payload.circuit_distance_meters === null) needed.push("circuit_distance_meters");
+    }
+    // SIKRINGSSKAP
+    else if (has(['sikringsskap', 'oppgradere'])) {
+      if (payload.fuse_box_age === undefined || payload.fuse_box_age === null) needed.push("fuse_box_age");
+      if (payload.fuse_box_circuit_count === undefined || payload.fuse_box_circuit_count === null) needed.push("fuse_box_circuit_count");
+      if (payload.fuse_box_surge_protection === undefined || payload.fuse_box_surge_protection === null) needed.push("fuse_box_surge_protection");
+      if (payload.fuse_box_extra_equipment === undefined || payload.fuse_box_extra_equipment === null) needed.push("fuse_box_extra_equipment");
+    }
+    // UTE STIKK
+    else if (has(['ute', 'terrasse', 'balkong'])) {
+      if (payload.outdoor_location === undefined || payload.outdoor_location === null) needed.push("outdoor_location");
+      if (payload.outdoor_distance_meters === undefined || payload.outdoor_distance_meters === null) needed.push("outdoor_distance_meters");
+      if (payload.outdoor_socket_count === undefined || payload.outdoor_socket_count === null) needed.push("outdoor_socket_count");
+      if (payload.outdoor_weather_exposed === undefined || payload.outdoor_weather_exposed === null) needed.push("outdoor_weather_exposed");
     }
   }
 
@@ -255,6 +500,45 @@ function buildQuestion(field: string) {
       return "Hvor mange lamper gjelder det?";
     case "ceiling_height_type":
       return "Er det vanlig takhøyde (ca 2,4 m), eller høyt/skråtak?";
+    // SOCKET
+    case "socket_count": return "Hvor mange kontakter skal byttes?";
+    case "is_grounded": return "Er det jordet eller ujordet kontakt?";
+    case "is_socket_accessible": return "Er det synlig skade/svidd plast? Og er den lett tilgjengelig?"; // Combined for brevity
+    // DIMMER
+    case "bulb_type": return "Er det LED-lys eller halogen?";
+    case "dimmer_circuit_type": return "Er det én bryter eller trappebryter (to steder)?";
+    case "dimmer_count": return "Hvor mange dimmere ønskes?";
+    // EV
+    case "ev_has_charger": return "Har du allerede lader, eller skal den leveres av elektriker?";
+    case "ev_distance_meters": return "Ca. avstand fra sikringsskap til garasje/ladested?";
+    case "ev_phase": return "Vet du om du har 1-fase eller 3-fase anlegg?";
+    case "ev_load_balancing": return "Ønsker du lastbalansering?";
+    // TROUBLESHOOT
+    case "troubleshoot_is_acute": return "Er det akutt (ingen strøm i hele huset) eller kun en kurs?";
+    // SPOTS
+    case "spot_count": return "Hvor mange spotter ser du for deg?";
+    case "ceiling_type": return "Er taket åpent over (loft) eller lukket?";
+    case "spot_needs_dimmer": return "Skal det monteres dimmer?";
+    // MOVE
+    case "wall_type": return "Er det gipsvegg eller betong?";
+    case "wiring_type": return "Er det skjult eller åpent anlegg?";
+    case "socket_move_action": return "Skal den gamle kontakten fjernes helt eller bli stående?";
+    // NEW CIRCUIT
+    case "appliance_type": return "Hva skal kobles til? (F.eks induksjon/platetopp krever høy effekt)";
+    case "fuse_box_has_space": return "Har du ledig plass i sikringsskapet?";
+    case "circuit_distance_meters": return "Ca. avstand fra sikringsskap til der strømmen skal?";
+    // FUSE BOX
+    case "fuse_box_age": return "Hvor gammelt er sikringsskapet (ca)?";
+    case "fuse_box_circuit_count": return "Ca. hvor mange kurser (sikringer) er det i dag?";
+    case "fuse_box_surge_protection": return "Ønsker du overspenningsvern?";
+    case "fuse_box_extra_equipment": return "Har du elbillader, solceller eller annet spesialutstyr?";
+    // OUTDOOR
+    case "outdoor_location": return "Hvor skal den plasseres? (Vegg, terrasse, annet)";
+    case "outdoor_distance_meters": return "Avstand til nærmeste innvendige punkt/stikkontakt?";
+    case "outdoor_socket_count": return "Ønsker du en dobbel eller flere kontakter?";
+    case "outdoor_weather_exposed": return "Er det tak over plasseringen, eller helt værutsatt?";
+
+    // EXISTING
     case "switch_type":
       return "Skal den kobles til eksisterende bryter, eller ny styring (f.eks. dimmer)?";
     default:
