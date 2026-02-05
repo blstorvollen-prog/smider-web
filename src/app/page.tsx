@@ -51,23 +51,39 @@ export default async function Home() {
         <div className="absolute inset-0 flex items-center justify-center z-50 bg-background/20 backdrop-blur-[2px]">
           <div className="max-w-md w-full space-y-8 p-10 border rounded-2xl bg-background/80 shadow-2xl">
             <div className="flex flex-col items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-full">
-                <Lock className="w-8 h-8 text-primary" />
+              <div className="w-16 h-16 bg-primary/10 flex items-center justify-center rounded-2xl">
+                <Construction className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold">Logg inn for å bruke Smider</h2>
-              <p className="text-center text-muted-foreground">
-                Vi har stengt for åpne registreringer i pilotperioden.
+
+              <div className="space-y-2">
+                <h1 className="text-3xl font-bold tracking-tight text-center">
+                  Smider
+                </h1>
+                <div className="flex items-center justify-center gap-2 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-500 px-3 py-1 rounded-full text-xs font-medium w-fit mx-auto border border-yellow-200 dark:border-yellow-800">
+                  <Lock className="w-3 h-3" />
+                  Under Utvikling
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-center">
+              <p className="text-lg font-medium text-foreground">
+                Vi bygger fremtidens håndverkertjeneste.
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Plattformen er foreløpig stengt for offentligheten mens vi optimaliserer opplevelsen.
               </p>
             </div>
-            <Link href="/login" className="w-full block">
-              <Button className="w-full h-11 text-base" size="lg">
-                Logg inn
-              </Button>
-            </Link>
-            <div className="text-center">
-              <Button variant="link" className="text-muted-foreground" disabled>
-                (Registrering deaktivert)
-              </Button>
+
+            <div className="pt-2">
+              <Link href="/login" className="w-full block">
+                <Button className="w-full h-11 text-base" size="lg">
+                  Logg inn for å teste
+                </Button>
+              </Link>
+              <p className="mt-4 text-xs text-muted-foreground text-center">
+                Kun for inviterte testbrukere.
+              </p>
             </div>
           </div>
         </div>
