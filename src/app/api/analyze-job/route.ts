@@ -250,7 +250,7 @@ Returner alltid feltene:
   "outdoor_weather_exposed": boolean|null,
 
   "intent": string|null,
-  "user_question": string|null
+  "user_question": string|null  // KUN hvis brukeren stiller et faktisk spørsmål som krever svar. Hvis brukeren svarer på et spørsmål (f.eks "Alt"), sett denne til null.
 }
 `;
 
@@ -328,7 +328,7 @@ function answerUserQuestion(q: string) {
     return `Jordet stikkontakt har ekstra sikkerhet mot feilstrøm. På kjøkken, bad og utendørs er jordet vanligvis påkrevd.\n\nVet du om kontakten er jordet?`;
   }
 
-  return `Godt spørsmål 🙂 Kan du si litt mer hva du lurer på?`;
+  return `Kan du utdype eller forklare litt nærmere hva du mener?`;
 }
 
 /**
