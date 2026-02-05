@@ -57,7 +57,11 @@ export function AuthForm({ type }: { type: 'login' | 'signup' }) {
                     const msg = (res as any).message;
                     if (msg) setMessage(msg)
                 }
-            } catch (e) {
+            } catch (e: any) {
+                // Ignore Next.js redirect errors
+                if (e?.message === 'NEXT_REDIRECT' || e?.digest?.includes('NEXT_REDIRECT')) {
+                    return
+                }
                 setError('Something went wrong')
             }
         })
