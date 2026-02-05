@@ -59,6 +59,7 @@ interface JobPayload {
   wiring_type?: "hidden" | "open" | null;
 
   // New circuit
+  appliance_type?: string | null;
   fuse_box_has_space?: boolean | null;
   circuit_distance_meters?: number | null;
 
@@ -106,17 +107,21 @@ function estimateHours(data: JobPayload): number {
     return hours;
   }
 
-  // COOKTOP / OVEN CONNECTION
-  if (has(["platetopp", "induksjon", "komfyr", "ovn"])) {
-    if (
-      d.includes("ny kurs") ||
-      d.includes("egen kurs") ||
-      d.includes("ikke kurs") ||
-      d.includes("må trekkes")
-    ) {
-      return 5.5;
+  // COOKTOP / OVEN CONNECTION / NEW CIRCUIT
+  if (has(["platetopp", "induksjon", "komfyr", "ovn", "ny kurs"])) {
+    let hours = 3.5;
+
+    if (d.includes("ny kurs") || d.includes("egen kurs") || d.includes("må trekkes")) {
+      hours = 5.5;
     }
-    return 3.5;
+
+    // Komfyrvakt installation usually takes ~0.5 - 1h extra if not included in base? 
+    // Usually part of the "Ny kurs til komfyr" package, but let's add 0.5h for safety if specifically komfyr/platetopp
+    if (d.includes("komfyr") || d.includes("platetopp") || d.includes("induksjon")) {
+      // checks later in price calculation for material cost
+    }
+
+    return hours;
   }
 
   // TROUBLESHOOTING
@@ -282,6 +287,16 @@ function getMissingFields(payload: JobPayload) {
     }
   }
 
+  // Check for specific intents
+  const d = (payload.task_details || "").toLowerCase();
+
+  // New circuit -> Ask what appliance
+  if (d.includes("ny kurs") || d.includes("egen kurs")) {
+    if (!payload.appliance_type) {
+      missing.push("appliance_type");
+    }
+  }
+
   if (payload.materials_by_customer === false && !payload.materials_description) {
     missing.push("materials_description");
   }
@@ -298,6 +313,9 @@ function buildQuestion(field: string) {
   switch (field) {
     case "task_details":
       return "Kan du kort beskrive hva du trenger hjelp til?";
+
+    case "appliance_type":
+      return "Hva skal kobles til den nye kursen? (F.eks platetopp, komfyr, elbillader eller vanlig stikkontakt?)";
 
     case "materials_by_customer":
       return "Har du utstyret/materialene selv, eller skal elektriker ta med?";
@@ -365,8 +383,21 @@ export async function POST(req: Request) {
     const hours = estimateHours(extracted);
     const price = calculatePrice(hours);
 
+    // Check for Komfyrvakt requirement
+    let extraMsg = "";
+    if (extracted.appliance_type && (
+      extracted.appliance_type.includes("komfyr") ||
+      extracted.appliance_type.includes("platetopp") ||
+      extracted.appliance_type.includes("induksjon")
+    )) {
+      const stoveGuardCost = 1500;
+      price.min += stoveGuardCost;
+      price.max += stoveGuardCost;
+      extraMsg = ` Jeg har også lagt inn en komfyrvakt (ca ${stoveGuardCost} kr) som er påkrevd for ny kurs til platetopp/komfyr.`;
+    }
+
     return NextResponse.json({
-      message: "Takk! Jeg har forstått oppdraget og laget et estimat.",
+      message: "Takk! Jeg har forstått oppdraget og laget et estimat." + extraMsg,
       analysis: {
         category: "ELEKTRIKER",
         intent: extracted.intent,
