@@ -110,11 +110,7 @@ export function AuthForm({ type }: { type: 'login' | 'signup' }) {
                     </form>
                 </Form>
             </CardContent>
-            <div className="flex flex-col items-center gap-4 w-full">
-                <p className="text-sm text-muted-foreground text-center">
-                    Har du ikke konto? <br />
-                    Plattformen er under utvikling og lukket for registrering.
-                </p>
+            <div className="flex flex-col items-center gap-4 w-full px-6 pb-6">
                 <div className="w-full border-t" />
                 <div className="space-y-2 text-center w-full">
                     <p className="text-xs font-medium text-foreground">
