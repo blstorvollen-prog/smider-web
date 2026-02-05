@@ -247,6 +247,7 @@ Returner alltid feltene:
   "wall_type": string|null,
   "wiring_type": string|null,
 
+  "appliance_type": string|null, // Hva skal kobles til (komfyr, platetopp, stikkontakt, etc)
   "fuse_box_has_space": boolean|null,
   "circuit_distance_meters": number|null,
 

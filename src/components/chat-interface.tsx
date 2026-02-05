@@ -236,8 +236,10 @@ export function ChatInterface(props: ChatInterfaceProps) {
                         ))}
                         {mutation.isPending && (
                             <div className="flex justify-start">
-                                <div className="bg-muted rounded-lg p-3 text-sm italic">
-                                    Analyserer forespørsel...
+                                <div className="bg-muted rounded-lg p-3 text-sm flex items-center space-x-1">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                                 </div>
                             </div>
                         )}
