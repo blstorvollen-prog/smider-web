@@ -25,7 +25,14 @@ export async function Navbar() {
             <div className="container flex h-14 items-center justify-between">
                 <div className="mr-4 flex">
                     <Link className="mr-6 flex items-center space-x-2 font-bold" href="/">
-                        <span className="hidden text-2xl font-bold sm:inline-block" style={{ fontFamily: 'Horizon, sans-serif' }}>smiðr</span>
+                        <Image
+                            src="/logo.png"
+                            alt="Smider"
+                            width={120}
+                            height={40}
+                            className="h-8 w-auto dark:invert"
+                            priority
+                        />
                     </Link>
                 </div>
                 <div className="flex items-center space-x-2">
