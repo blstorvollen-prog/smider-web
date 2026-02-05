@@ -22,15 +22,15 @@ export async function Navbar() {
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container flex h-14 items-center justify-between">
+            <div className="container flex h-20 items-center justify-between">
                 <div className="mr-4 flex">
                     <Link className="mr-6 flex items-center space-x-2 font-bold" href="/">
                         <Image
                             src="/logo.png"
                             alt="Smider"
-                            width={120}
-                            height={40}
-                            className="h-8 w-auto dark:invert"
+                            width={180}
+                            height={60}
+                            className="h-14 w-auto dark:invert"
                             priority
                         />
                     </Link>
