@@ -50,7 +50,7 @@ export async function Navbar() {
                             <Link href="/login">
                                 <Button variant="ghost" size="sm">Logg inn</Button>
                             </Link>
-                            <Link href="/signup">
+                            <Link href="#">
                                 <Button size="sm">Kom i gang</Button>
                             </Link>
                         </>
