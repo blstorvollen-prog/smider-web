@@ -69,7 +69,7 @@ export function AuthForm({ type }: { type: 'login' | 'signup' }) {
                 <CardTitle>{type === 'login' ? 'Logg inn' : 'Registrer deg'}</CardTitle>
                 <CardDescription>
                     {type === 'login'
-                        ? 'Skriv inn legitimasjonen din for å få tilgang til kontoen'
+                        ? 'Logg inn med din bruker for å fortsette.'
                         : 'Opprett en konto for å komme i gang'}
                 </CardDescription>
             </CardHeader>
