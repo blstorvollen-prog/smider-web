@@ -318,6 +318,11 @@ VIKTIG OM user_question:
 - Input: "Jeg har kjøpt en ny lampe jeg trenger hjelp med å koble til" -> user_question: null
 - Input: "Ønsker en ny dimmer" -> user_question: null
 
+VIKTIG OM task_details:
+- Dette feltet skal oppsummere HELE oppdraget basert på samtalehistorikken.
+- Hvis brukeren har sagt "Henge opp lampe" tidligere, må dette bevares i task_details selv om de senere bare svarer "Ja" eller "Dimmer".
+- Skal ALDRI settes til null hvis oppdraget er kjent fra tidligere meldinger.
+
 TOLKNING:
 - "Ønsker dimmer" / "Skal ha dimmer" -> switch_type: "new", dimmer_count: 1 (minst).
 - "Har lampe" / "Kjøpt lampe" -> has_product: true.
