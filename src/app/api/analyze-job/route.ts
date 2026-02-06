@@ -12,17 +12,23 @@ export const runtime = "nodejs";
 /** Hourly rate (NOK) */
 const ELECTRICIAN_RATE = 1500;
 
-/** Required base fields */
-const REQUIRED_FIELDS = ["task_details", "materials_by_customer"];
+/** Required base fields (Removed generic materials_by_customer to reduce friction) */
+const REQUIRED_FIELDS = ["task_details"];
 
 /**
  * Payload shape (only electrician fields)
  */
 interface JobPayload {
   task_details?: string;
-  materials_by_customer?: boolean;
+
+  // Material/Product logic
+  materials_by_customer?: boolean; // For cables, sockets, etc.
   materials_description?: string | null;
   estimated_material_cost?: number | null;
+
+  // Main Product (e.g. Lamp, Heater, Charger)
+  has_product?: boolean | null; // Does customer have the main unit?
+  product_info?: string | null; // Link or name if they don't have it
 
   // Lamp
   has_existing_point?: boolean | null;
@@ -174,6 +180,7 @@ const MATERIAL_PRICES = {
   CABLE_PER_METER: 100,
   SOCKET: 450,
   DIMMER: 800,
+  SWITCH: 300,
   STOVE_GUARD: 1500,
   SPOT: 600, // Enkel spot
   SERVICE_VAN: 900,
@@ -234,6 +241,14 @@ function calculatePrice(hours: number, data: JobPayload) {
       materialCost += cost;
       lineItems.push({
         name: `Dimmer (${data.dimmer_count} stk x ${MATERIAL_PRICES.DIMMER} kr)`,
+        amount: `${cost} kr`
+      });
+    } else if (data.switch_type === 'new') {
+      // Only charge for standard switch if no dimmer is specified but "new switch" is requested
+      const cost = 1 * MATERIAL_PRICES.SWITCH;
+      materialCost += cost;
+      lineItems.push({
+        name: `Lysbryter (1 stk x ${MATERIAL_PRICES.SWITCH} kr)`,
         amount: `${cost} kr`
       });
     }
@@ -308,9 +323,8 @@ Hvis ukjent → null.
 Returner alltid feltene:
 {
   "task_details": string|null,
-  "materials_by_customer": boolean|null,
-  "materials_description": string|null,
-  "estimated_material_cost": number|null,
+  "has_product": boolean|null, // Har kunden selve produktet (lampe, lader, ovn)?
+  "product_info": string|null,   // Navn/lenke til produktet hvis de IKKE har det
 
   "has_existing_point": boolean|null,
   "lamp_count": number|null,
@@ -348,7 +362,7 @@ Returner alltid feltene:
   "outdoor_weather_exposed": boolean|null,
 
   "intent": string|null,
-  "user_question": string|null  // KUN hvis brukeren stiller et faktisk spørsmål som krever svar. Hvis brukeren svarer på et spørsmål (f.eks "Alt"), sett denne til null.
+  "user_question": string|null
 }
 `;
 
@@ -390,14 +404,28 @@ function getMissingFields(payload: JobPayload) {
     }
   }
 
-  if (payload.materials_by_customer === false && !payload.materials_description) {
-    missing.push("materials_description");
+  // 1. GENERIC PRODUCT CHECK (Replaces simple materials check)
+  // We want to know if they have the main item (lamp, charger, thermostat, socket, etc.)
+  const PRODUCT_KEYWORDS = ["lampe", "pendel", "lysekrone", "lader", "zaptec", "easee", "termostat", "ovn", "vifte", "stikk", "kontakt", "dimmer", "bryter"];
+
+  if (PRODUCT_KEYWORDS.some(w => d.includes(w))) {
+    // 1. Check if they have the product
+    if (payload.has_product === null || payload.has_product === undefined) {
+      missing.push("has_product");
+    }
+    // 2. If they DON'T have it, ask for info
+    else if (payload.has_product === false && !payload.product_info) {
+      missing.push("product_info");
+    }
   }
 
-  // Lamp -> Ask if point exists
+  // Lamp Specific Technical Questions
   if (d.includes("lampe") || d.includes("pendel") || d.includes("lysekrone")) {
     if (payload.has_existing_point === null || payload.has_existing_point === undefined) {
       missing.push("has_existing_point");
+    }
+    if (!payload.switch_type) {
+      missing.push("switch_type");
     }
   }
 
@@ -417,14 +445,18 @@ function buildQuestion(field: string) {
     case "appliance_type":
       return "Hva skal kobles til den nye kursen? (F.eks platetopp, komfyr, elbillader eller vanlig stikkontakt?)";
 
-    case "materials_by_customer":
-      return "Har du utstyret/materialene selv, eller skal elektriker ta med?";
+    // Replaces 'has_product_lamp'
+    case "has_product":
+      return "Har du produktet/utstyret som skal monteres selv, eller skal elektrikeren ta med dette?";
 
-    case "materials_description":
-      return "Hva trenger du at elektrikeren kjøper inn?";
+    case "product_info":
+      return "Kan du skrive navnet på produktet/utstyret eller legge ved en lenke, så elektrikeren vet hva som skal monteres?";
 
     case "has_existing_point":
       return "Er det lagt opp punkt/stikkontakt i taket der lampen skal henge, eller må det legges nytt?";
+
+    case "switch_type":
+      return "Skal lampen kobles til en eksisterende bryter/dimmer, eller ønsker du at det monteres en ny?";
 
     default:
       return "Kan du gi litt mer informasjon om jobben?";
