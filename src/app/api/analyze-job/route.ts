@@ -394,6 +394,13 @@ function getMissingFields(payload: JobPayload) {
     missing.push("materials_description");
   }
 
+  // Lamp -> Ask if point exists
+  if (d.includes("lampe") || d.includes("pendel") || d.includes("lysekrone")) {
+    if (payload.has_existing_point === null || payload.has_existing_point === undefined) {
+      missing.push("has_existing_point");
+    }
+  }
+
   return missing;
 }
 
@@ -416,8 +423,11 @@ function buildQuestion(field: string) {
     case "materials_description":
       return "Hva trenger du at elektrikeren kjøper inn?";
 
+    case "has_existing_point":
+      return "Er det lagt opp punkt/stikkontakt i taket der lampen skal henge, eller må det legges nytt?";
+
     default:
-      return "Kan du gi litt mer informasjon?";
+      return "Kan du gi litt mer informasjon om jobben?";
   }
 }
 
