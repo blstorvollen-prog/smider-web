@@ -133,7 +133,7 @@ export function ChatInterface(props: ChatInterfaceProps) {
                                 className="flex-1 border-0 bg-transparent text-lg focus-visible:ring-0 focus-visible:ring-offset-0 px-4 h-12"
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                placeholder="Beskriv jobben (f.eks. 'Montere kjøkkenarmatur')..."
+                                placeholder="Beskriv jobben (f.eks. 'Bytte stikkontakt')..."
                                 autoFocus
                             />
                             <Button type="submit" size="lg" className="h-10 px-8">
