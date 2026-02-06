@@ -311,12 +311,25 @@ Eksempler på elektrikertjenester i piloten:
 - Ny kurs til kjøkken
 
 
+VIKTIG OM user_question:
+- Sett DENNE TIL NULL hvis brukeren beskriver jobben eller svarer på et spørsmål.
+- Sett DENNE TIL NULL selv om setningen er lang eller kronglete.
+- KUN sett denne hvis brukeren eksplisitt lurer på noe faglig (f.eks "Hva er jordet?", "Trenger jeg komfyrvakt?").
+- Input: "Jeg har kjøpt en ny lampe jeg trenger hjelp med å koble til" -> user_question: null
+- Input: "Ønsker en ny dimmer" -> user_question: null
+
+TOLKNING:
+- "Ønsker dimmer" / "Skal ha dimmer" -> switch_type: "new", dimmer_count: 1 (minst).
+- "Har lampe" / "Kjøpt lampe" -> has_product: true.
+
+
 ENUMS (STRICT):
 ceiling_height_type: "standard" | "high_sloped"
 dimmer_circuit_type: "single" | "multi"
 wall_type: "drywall" | "concrete"
 wiring_type: "hidden" | "open"
 ev_phase: "1-phase" | "3-phase"
+switch_type: "existing" | "new"
 
 Hvis ukjent → null.
 
