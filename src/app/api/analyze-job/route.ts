@@ -168,18 +168,110 @@ function estimateHours(data: JobPayload): number {
  *  2) PRICE CALCULATION
  * ============================================================
  */
-function calculatePrice(hours: number) {
-  const days = Math.ceil(hours / 7.5);
-  const serviceVanFee = days * 900;
 
+/** Material prices (NOK) */
+const MATERIAL_PRICES = {
+  CABLE_PER_METER: 100,
+  SOCKET: 450,
+  DIMMER: 800,
+  STOVE_GUARD: 1500,
+  SPOT: 600, // Enkel spot
+  SERVICE_VAN: 900,
+};
+
+function calculatePrice(hours: number, data: JobPayload) {
+  const days = Math.ceil(hours / 7.5);
+  const serviceVanFee = days * MATERIAL_PRICES.SERVICE_VAN;
   const laborCost = hours * ELECTRICIAN_RATE;
-  const base = laborCost + serviceVanFee;
+
+  let totalMin = laborCost + serviceVanFee;
+  let totalMax = (laborCost * 1.3) + serviceVanFee; // Only scale labor for max range? Or scale both? Usually labor is the variable. Let's keep simple scaling for now or specific logic.
+
+  // Let's stick to existing logic: base * 1.3 for max, but materials should be additive and fixed?
+  // Actually, material usage can vary too. 
+  // For the requested breakdown, valid values are needed. 
+
+  const lineItems: { name: string; amount: string | number; type?: 'range' }[] = [];
+
+  // 1. Labor
+  lineItems.push({
+    name: `Arbeid (${hours}t x ${ELECTRICIAN_RATE} kr)`,
+    amount: `${laborCost} kr`,
+  });
+
+  // 2. Service Van
+  lineItems.push({
+    name: `Servicebil (${days} ${days === 1 ? 'dag' : 'dager'})`,
+    amount: `${serviceVanFee} kr`,
+  });
+
+  // 3. Materials (if not provided by customer)
+  let materialCost = 0;
+  if (data.materials_by_customer !== true) {
+    // Cable
+    if (data.circuit_distance_meters) {
+      const cost = data.circuit_distance_meters * MATERIAL_PRICES.CABLE_PER_METER;
+      materialCost += cost;
+      lineItems.push({
+        name: `Kabel (${data.circuit_distance_meters}m x ${MATERIAL_PRICES.CABLE_PER_METER} kr)`,
+        amount: `${cost} kr`
+      });
+    }
+
+    // Sockets
+    if (data.socket_count) {
+      const cost = data.socket_count * MATERIAL_PRICES.SOCKET;
+      materialCost += cost;
+      lineItems.push({
+        name: `Stikkontakt (${data.socket_count} stk x ${MATERIAL_PRICES.SOCKET} kr)`,
+        amount: `${cost} kr`
+      });
+    }
+
+    // Dimmers
+    if (data.dimmer_count) {
+      const cost = data.dimmer_count * MATERIAL_PRICES.DIMMER;
+      materialCost += cost;
+      lineItems.push({
+        name: `Dimmer (${data.dimmer_count} stk x ${MATERIAL_PRICES.DIMMER} kr)`,
+        amount: `${cost} kr`
+      });
+    }
+
+    // Spots
+    if (data.spot_count) {
+      const cost = data.spot_count * MATERIAL_PRICES.SPOT;
+      materialCost += cost;
+      lineItems.push({
+        name: `Spotter (${data.spot_count} stk x ${MATERIAL_PRICES.SPOT} kr)`,
+        amount: `${cost} kr`
+      });
+    }
+
+    // Stove Guard (Special case logic from previous code)
+    if (data.appliance_type && (
+      data.appliance_type.includes("komfyr") ||
+      data.appliance_type.includes("platetopp") ||
+      data.appliance_type.includes("induksjon")
+    )) {
+      materialCost += MATERIAL_PRICES.STOVE_GUARD;
+      lineItems.push({
+        name: `Komfyrvakt (påkrevd)`,
+        amount: `${MATERIAL_PRICES.STOVE_GUARD} kr`
+      });
+    }
+  }
+
+  totalMin += materialCost;
+  // For max price, maybe add 10-20% buffer on materials?
+  totalMax = (laborCost * 1.3) + serviceVanFee + (materialCost * 1.2);
 
   return {
     hours: Math.round(hours * 10) / 10,
-    min: Math.round(base),
-    max: Math.round(base * 1.3),
+    min: Math.round(totalMin),
+    max: Math.round(totalMax),
     serviceVanFee,
+    lineItems,
   };
 }
 
@@ -356,7 +448,6 @@ function answerUserQuestion(q: string) {
  * ============================================================
  */
 
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -382,23 +473,10 @@ export async function POST(req: Request) {
     }
 
     const hours = estimateHours(extracted);
-    const price = calculatePrice(hours);
-
-    // Check for Komfyrvakt requirement
-    let extraMsg = "";
-    if (extracted.appliance_type && (
-      extracted.appliance_type.includes("komfyr") ||
-      extracted.appliance_type.includes("platetopp") ||
-      extracted.appliance_type.includes("induksjon")
-    )) {
-      const stoveGuardCost = 1500;
-      price.min += stoveGuardCost;
-      price.max += stoveGuardCost;
-      extraMsg = ` Jeg har også lagt inn en komfyrvakt (ca ${stoveGuardCost} kr) som er påkrevd for ny kurs til platetopp/komfyr.`;
-    }
+    const price = calculatePrice(hours, extracted);
 
     return NextResponse.json({
-      message: "Takk! Jeg har forstått oppdraget og laget et estimat." + extraMsg,
+      message: "Takk! Jeg har forstått oppdraget og laget et estimat.",
       analysis: {
         category: "ELEKTRIKER",
         intent: extracted.intent,
@@ -406,9 +484,11 @@ export async function POST(req: Request) {
         estimated_price_max: price.max,
         hours: price.hours,
         structured_data: extracted,
+        line_items: price.lineItems
       },
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
